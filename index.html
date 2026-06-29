@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pacific Northwest Whale Tracker — Vancouver to Alaska</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  :root{
+    --fog:#eef2f1;
+    --paper:#f7f5ef;
+    --ink:#16282a;
+    --deep:#0b2e33;
+    --teal:#1f6f6b;
+    --kelp:#3c7a52;
+    --breach:#fefcf6;
+    --line:#c9d3cf;
+    --tide:#9aa8a3;
+    --orca:#0b2e33;
+    --hump:#b5562c;
+    --gray:#6b7a76;
+    --minke:#8a6d3b;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--fog); color:var(--ink); }
+  body{
+    font-family: 'Iowan Old Style', 'Georgia', 'Times New Roman', serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono{ font-family: 'SF Mono','Menlo','Consolas',monospace; letter-spacing:0.02em; }
+
+  /* ===== Header / masthead ===== */
+  .masthead{
+    background: var(--deep);
+    color: var(--breach);
+    padding: 28px 20px 22px;
+    border-bottom: 6px solid var(--teal);
+    position: relative;
+    overflow:hidden;
+  }
+  .masthead::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      radial-gradient(circle at 85% 20%, rgba(255,255,255,0.06), transparent 40%),
+      repeating-linear-gradient(0deg, transparent, transparent 22px, rgba(255,255,255,0.025) 23px);
+    pointer-events:none;
+  }
+  .masthead-inner{ max-width: 720px; margin:0 auto; position:relative; }
+  .eyebrow{
+    font-family: 'SF Mono','Menlo',monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #9fd6c9;
+    margin-bottom: 10px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .eyebrow .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:#5fe0b8;
+    box-shadow:0 0 0 0 rgba(95,224,184,0.7);
+    animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(95,224,184,0.55); }
+    70%{ box-shadow:0 0 0 8px rgba(95,224,184,0); }
+    100%{ box-shadow:0 0 0 0 rgba(95,224,184,0); }
+  }
+  h1{
+    margin:0 0 6px;
+    font-size: clamp(28px, 5vw, 42px);
+    line-height: 1.05;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  h1 em{ font-style: italic; color:#9fd6c9; font-weight: 500; }
+  .subhead{
+    margin: 0;
+    font-size: 14.5px;
+    color: #c9ddd6;
+    max-width: 520px;
+    line-height: 1.5;
+  }
+  .route-line{
+    margin-top:18px;
+    font-family:'SF Mono','Menlo',monospace;
+    font-size: 11.5px;
+    color:#7fb8ac;
+    letter-spacing:0.04em;
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .route-line .seg{ color:#5fe0b8; }
+  .route-line .arrow{ opacity:0.5; }
+
+  /* ===== Controls ===== */
+  .controls{
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 16px 20px;
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+  }
+  select, button{
+    font-family:'SF Mono','Menlo',monospace;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    background: var(--breach);
+    color: var(--ink);
+    cursor:pointer;
+  }
+  button.primary{
+    background: var(--teal);
+    color: var(--breach);
+    border-color: var(--teal);
+    font-weight:600;
+    letter-spacing:0.03em;
+  }
+  button.primary:hover{ background:#185955; }
+  button.primary:disabled{ opacity:0.6; cursor:wait; }
+  .updated-at{
+    margin-left:auto;
+    font-family:'SF Mono','Menlo',monospace;
+    font-size: 11px;
+    color: var(--gray);
+    text-align:right;
+  }
+  .source-toggle{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-family:'SF Mono','Menlo',monospace;
+    font-size: 11px;
+    color: var(--gray);
+    cursor:pointer;
+    user-select:none;
+  }
+  .source-toggle input{ cursor:pointer; accent-color: var(--teal); }
+  .source-tag{
+    font-family:'SF Mono','Menlo',monospace;
+    font-size: 8.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--gray);
+    margin-top: 3px;
+    display:block;
+  }
+  .source-tag.acartia{ color: var(--teal); font-weight:600; }
+
+  /* ===== Map ===== */
+  #map{
+    max-width: 720px;
+    margin: 0 auto;
+    height: 420px;
+    border-bottom: 1px solid var(--line);
+  }
+  .map-legend{
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 10px 20px;
+    display:flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    font-family: 'SF Mono','Menlo',monospace;
+    font-size: 11px;
+    color: var(--gray);
+  }
+  .legend-item{ display:flex; align-items:center; gap:6px; }
+  .legend-shape{ display:inline-block; width:12px; height:12px; flex-shrink:0; background:#8a8a8a; }
+  .legend-triangle{
+    width:0; height:0; background:transparent;
+    border-left:6px solid transparent;
+    border-right:6px solid transparent;
+    border-bottom:11px solid #8a8a8a;
+  }
+  .legend-circle{ border-radius:50%; }
+  .legend-diamond{ transform: rotate(45deg); width:9px; height:9px; }
+  .legend-hexagon{
+    width:12px; height:12px;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  }
+  .legend-star{
+    width:14px; height:14px;
+    background:#8a8a8a;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  }
+  .legend-octagon{
+    width:12px; height:12px;
+    clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+  }
+  .legend-dot{ display:inline-block; width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+  .legend-divider{
+    width: 1px;
+    background: var(--line);
+    margin: 0 2px;
+  }
+  .leaflet-popup-content-wrapper{
+    border-radius: 4px;
+    font-family: 'Iowan Old Style', Georgia, serif;
+  }
+  .leaflet-popup-content{ margin: 10px 12px; font-size: 13px; line-height:1.4; }
+  .popup-species{ font-weight:700; font-size:14px; margin-bottom:2px; }
+  .popup-meta{ color:#666; font-family:'SF Mono','Menlo',monospace; font-size:10.5px; }
+  .popup-link{ color: var(--teal); text-decoration:none; font-size:11.5px; }
+
+  .whale-marker-icon{
+    background: transparent !important;
+    border: none !important;
+  }
+
+  /* City labels shown on initial map load */
+  .city-label-icon{
+    background: transparent !important;
+    border: none !important;
+  }
+  .city-label-text{
+    font-family: 'Iowan Old Style', Georgia, serif;
+    font-size: 17.5px; /* ~25% larger than the 14px base map-label size */
+    font-weight: 700;
+    color: #000000;
+    white-space: nowrap;
+    text-shadow:
+      -1px -1px 0 #fff, 1px -1px 0 #fff,
+      -1px 1px 0 #fff, 1px 1px 0 #fff,
+      0 0 4px rgba(255,255,255,0.8);
+    pointer-events: none;
+  }
+
+  /* ===== Sightings log (the signature element) ===== */
+  .log-wrap{
+    max-width: 720px;
+    margin: 0 auto;
+    background: var(--breach);
+  }
+  .log-wrap summary{
+    cursor: pointer;
+    list-style: none;
+  }
+  .log-wrap summary::-webkit-details-marker{ display:none; }
+  .log-header{
+    padding: 16px 20px;
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    border-bottom: 1px solid var(--line);
+  }
+  .log-header h2{
+    margin:0;
+    font-size: 15px;
+    font-weight:600;
+    color: var(--gray);
+  }
+  .log-header h2::before{
+    content: '▸ ';
+    font-size: 11px;
+  }
+  .log-wrap[open] .log-header h2::before{
+    content: '▾ ';
+  }
+  .log-count{
+    font-family:'SF Mono','Menlo',monospace;
+    font-size:11px;
+    color:var(--gray);
+  }
+  .log-list{
+    list-style:none;
+    margin:0; padding:0;
+  }
+  .log-entry{
+    display:grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 14px;
+    align-items:center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+  }
+  .log-entry:hover{ background: rgba(31,111,107,0.04); }
+  .log-time{
+    font-family:'SF Mono','Menlo',monospace;
+    font-size: 11px;
+    color: var(--gray);
+    line-height:1.3;
+  }
+  .log-time .day{ color: var(--ink); font-weight:600; display:block; }
+  .log-main .species{
+    font-weight: 600;
+    font-size: 15px;
+    margin:0 0 2px;
+  }
+  .log-main .place{
+    font-size: 12.5px;
+    color: var(--gray);
+    margin:0;
+  }
+  .badge{
+    font-family:'SF Mono','Menlo',monospace;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 4px 8px;
+    border-radius: 20px;
+    white-space:nowrap;
+    color: var(--breach);
+  }
+  /* badge background is now set inline per-sighting based on recency */
+
+  .empty-state, .error-state, .loading-state{
+    padding: 40px 20px;
+    text-align:center;
+    color: var(--gray);
+    font-size: 14px;
+  }
+  .error-state{ color: #a3401f; }
+
+  /* ===== Footer / IG hint ===== */
+  footer{
+    max-width:720px;
+    margin: 0 auto;
+    padding: 18px 20px 36px;
+    font-size: 11.5px;
+    color: var(--gray);
+    line-height:1.6;
+    font-family: 'SF Mono','Menlo',monospace;
+  }
+  footer a{ color: var(--teal); text-decoration:none; }
+
+  @media (max-width: 480px){
+    .log-entry{ grid-template-columns: 50px 1fr auto; padding: 12px 16px; }
+    .masthead{ padding: 22px 16px 18px; }
+    .controls{ padding: 14px 16px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .eyebrow .dot{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="fileProtocolWarning" style="display:none; background:#a3401f; color:#fefcf6; padding:14px 20px; text-align:center; font-family:'SF Mono','Menlo',monospace; font-size:12.5px; line-height:1.5;">
+  ⚠️ This page is open as a local file, so it can't fetch live data — browsers block that for security. Upload it to GitHub Pages or Netlify Drop to see it work.
+</div>
+
+<div class="masthead">
+  <div class="masthead-inner">
+    <div class="eyebrow"><span class="dot"></span> live citizen-science feed</div>
+    <h1>Whale Watch — <em>Inside Passage Edition</em></h1>
+    <p class="subhead">Real sightings of orcas, whales, bald eagles, bears, salmon, sea otters &amp; cougars, pulled straight from iNaturalist's open observation network. No tracking devices — just people on the water and shore, telling us what they saw.</p>
+    <div class="route-line">
+      <span class="seg">VANCOUVER, BC</span>
+      <span class="arrow">→</span>
+      <span>JOHNSTONE STRAIT</span>
+      <span class="arrow">→</span>
+      <span>INSIDE PASSAGE</span>
+      <span class="arrow">→</span>
+      <span class="seg">SOUTHEAST ALASKA</span>
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <select id="taxonFilter">
+    <option value="all">All species</option>
+    <option value="152871">Orca (killer whale)</option>
+    <option value="9696">Humpback whale</option>
+    <option value="42183">Gray whale</option>
+    <option value="42201">Minke whale</option>
+    <option value="5305">Bald eagle</option>
+    <option value="41638">Black bear</option>
+    <option value="41641">Grizzly/brown bear</option>
+    <option value="47522">Salmon (all species)</option>
+    <option value="41860">Sea otter</option>
+    <option value="42007">Cougar</option>
+  </select>
+  <select id="daysFilter">
+    <option value="3">Last 3 days</option>
+    <option value="7" selected>Last 7 days</option>
+    <option value="14">Last 14 days</option>
+    <option value="30">Last 30 days</option>
+  </select>
+  <label class="source-toggle">
+    <input type="checkbox" id="acartiaToggle" checked />
+    <span>Include Acartia (Salish Sea orca network)</span>
+  </label>
+  <button class="primary" id="refreshBtn">↻ Refresh now</button>
+  <div class="updated-at" id="updatedAt">—</div>
+</div>
+
+<div id="map"></div>
+<div class="map-legend">
+  <span class="legend-item"><span class="legend-shape legend-triangle"></span> Orca</span>
+  <span class="legend-item"><span class="legend-shape legend-circle"></span> Other whale</span>
+  <span class="legend-item"><span class="legend-shape"></span> Bald eagle</span>
+  <span class="legend-item"><span class="legend-shape legend-diamond"></span> Bear</span>
+  <span class="legend-item"><span class="legend-shape legend-hexagon"></span> Salmon</span>
+  <span class="legend-item"><span class="legend-shape legend-star"></span> Sea otter</span>
+  <span class="legend-item"><span class="legend-shape legend-octagon"></span> Cougar</span>
+  <span class="legend-divider"></span>
+  <span class="legend-item"><span class="legend-dot" style="background:#2e8b4f;"></span> &lt;24h</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#1f6fb5;"></span> &lt;48h</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#7b4fa3;"></span> &lt;3 days</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#c4711f;"></span> &lt;4 days</span>
+  <span class="legend-item"><span class="legend-dot" style="background:#a3401f;"></span> 4+ days</span>
+</div>
+
+<details class="log-wrap" id="logDetails">
+  <summary class="log-header">
+    <h2>Sightings Log</h2>
+    <span class="log-count" id="logCount"></span>
+  </summary>
+  <ul class="log-list" id="logList">
+    <li class="loading-state">Casting nets for data…</li>
+  </ul>
+</details>
+
+<footer>
+  Sources: iNaturalist.org open observation API (citizen-science sightings, CC-licensed) &amp; Acartia.io (Salish Sea orca network, public feed, no token required). Acartia field names aren't fully published — if its markers look off, that's the API's response shape, not your setup. Data reflects what's been logged publicly — not a real-time vessel tracker. Bounding box: 47°N–60°N, 122°W–140°W. Built for <a href="https://chartsacourse.com" target="_blank">ChartsACourse</a>.
+</footer>
+
+<script>
+const SPECIES = {
+  152871: { name: "Orca", common: "Killer Whale", badge: "orca" },
+  9696:   { name: "Humpback Whale", common: "Humpback", badge: "whale" },
+  42183:  { name: "Gray Whale", common: "Gray Whale", badge: "whale" },
+  42201:  { name: "Minke Whale", common: "Minke", badge: "whale" },
+  5305:   { name: "Bald Eagle", common: "Bald Eagle", badge: "eagle" },
+  41638:  { name: "American Black Bear", common: "Black Bear", badge: "bear" },
+  41641:  { name: "Brown Bear", common: "Grizzly/Brown Bear", badge: "bear" },
+  47522:  { name: "Pacific Salmon", common: "Salmon", badge: "salmon" },
+  41860:  { name: "Sea Otter", common: "Sea Otter", badge: "otter" },
+  42007:  { name: "Cougar", common: "Cougar", badge: "cougar" }
+};
+const ALL_TAXA = Object.keys(SPECIES).join(',');
+
+// Bounding box: Vancouver, BC up through Southeast/Gulf of Alaska
+const BBOX = { swlat: 47.0, swlng: -140.0, nelat: 60.5, nelng: -122.0 };
+
+let map, markersLayer, cityLabelsLayer;
+
+const CITY_LABELS = [
+  { name: 'Vancouver',  lat: 49.2827, lng: -123.1207 },
+  { name: 'Juneau',     lat: 58.3019, lng: -134.4197 },
+  { name: 'Skagway',    lat: 59.4583, lng: -135.3139 },
+  { name: 'Ketchikan',  lat: 55.3422, lng: -131.6461 }
+];
+
+function initMap(){
+  map = L.map('map', { scrollWheelZoom: false }).setView([55.5, -132.0], 5);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap &copy; CARTO',
+    maxZoom: 12
+  }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+
+  cityLabelsLayer = L.layerGroup().addTo(map);
+  CITY_LABELS.forEach(city => {
+    const icon = L.divIcon({
+      html: `<span class="city-label-text">${city.name}</span>`,
+      className: 'city-label-icon',
+      iconSize: [120, 20],
+      iconAnchor: [60, 10]
+    });
+    L.marker([city.lat, city.lng], { icon, interactive: false }).addTo(cityLabelsLayer);
+  });
+}
+
+function badgeFor(taxonId){
+  return SPECIES[taxonId] ? SPECIES[taxonId].badge : 'whale';
+}
+function nameFor(taxonId, fallback){
+  return SPECIES[taxonId] ? SPECIES[taxonId].common : (fallback || 'Unidentified');
+}
+
+function fmtDate(iso){
+  if(!iso) return { day: '—', time: '' };
+  const d = new Date(iso);
+  const day = d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  const time = d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+  return { day, time };
+}
+
+async function fetchSightings(taxonChoice, days){
+  try{
+    const d1 = new Date(Date.now() - days*24*60*60*1000).toISOString().slice(0,10);
+    const taxonParam = taxonChoice === 'all' ? `taxon_id=${ALL_TAXA}` : `taxon_id=${taxonChoice}`;
+    const url = `https://api.inaturalist.org/v1/observations?${taxonParam}` +
+      `&swlat=${BBOX.swlat}&swlng=${BBOX.swlng}&nelat=${BBOX.nelat}&nelng=${BBOX.nelng}` +
+      `&d1=${d1}&order_by=observed_on&order=desc&per_page=50&geo=true&verifiable=true`;
+
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`iNaturalist API returned HTTP ${res.status}`);
+    const data = await res.json();
+    return (data.results || []).map(obs => normalizeInat(obs));
+  }catch(err){
+    const diagnosed = diagnoseFetchError(err);
+    console.warn('iNaturalist fetch failed:', diagnosed);
+    return { error: diagnosed };
+  }
+}
+
+// Turns a generic "Failed to fetch" into an actionable explanation,
+// since the browser gives the same vague error for several very
+// different root causes (file:// restriction, no internet, ad-blocker,
+// real CORS block, DNS failure, etc).
+function diagnoseFetchError(err){
+  const isGenericFetchFailure = err instanceof TypeError &&
+    /failed to fetch|networkerror|load failed/i.test(err.message);
+
+  if(isGenericFetchFailure){
+    if(window.location.protocol === 'file:'){
+      return `blocked because this page is open as a local file (file://). Browsers don't allow local files to fetch internet data. Host this on GitHub Pages, Netlify, or run a local server — it won't work from a double-clicked file.`;
+    }
+    if(!navigator.onLine){
+      return `no internet connection detected.`;
+    }
+    return `request was blocked before it reached the server — likely an ad-blocker, privacy extension, or network/firewall restriction. Try disabling browser extensions for this page, or test in a private/incognito window.`;
+  }
+  return err.message;
+}
+
+// Acartia returns sightings from the last 7 days, no token needed.
+// Their exact field names aren't publicly documented, so this reads
+// several common shapes defensively rather than assuming one.
+async function fetchAcartia(){
+  try{
+    const res = await fetch('https://acartia.io/api/v1/sightings/current');
+    if(!res.ok) throw new Error(`Acartia API returned HTTP ${res.status}`);
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : (data.sightings || data.results || data.data || []);
+    return list
+      .map(s => normalizeAcartia(s))
+      .filter(s => s && withinBbox(s.lat, s.lng) && withinSpeciesScope(s.speciesRaw));
+  }catch(err){
+    const diagnosed = diagnoseFetchError(err);
+    console.warn('Acartia fetch skipped:', diagnosed);
+    return { error: diagnosed };
+  }
+}
+
+function withinBbox(lat, lng){
+  if(typeof lat !== 'number' || typeof lng !== 'number') return false;
+  return lat >= BBOX.swlat && lat <= BBOX.nelat && lng >= BBOX.swlng && lng <= BBOX.nelng;
+}
+
+function withinSpeciesScope(raw){
+  if(!raw || typeof raw !== 'string') return true; // unknown/non-string species, still show it rather than drop it
+  const s = raw.toLowerCase();
+  return s.includes('whale') || s.includes('orca') || s.includes('killer') || s.includes('cetacean') || s.includes('otter');
+}
+
+// Normalize an iNaturalist observation into our common shape
+function normalizeInat(obs){
+  const taxonId = obs.taxon ? obs.taxon.id : null;
+  const coords = obs.geojson && obs.geojson.coordinates ? obs.geojson.coordinates : [null, null];
+  return {
+    source: 'inaturalist',
+    lat: coords[1],
+    lng: coords[0],
+    speciesName: obs.taxon ? (obs.taxon.preferred_common_name || obs.taxon.name) : 'Unidentified whale',
+    speciesRaw: obs.taxon ? obs.taxon.name : null,
+    badge: badgeFor(taxonId),
+    observedAt: obs.observed_on_string || obs.time_observed_at || obs.observed_on,
+    place: obs.place_guess || 'Location withheld',
+    link: obs.uri
+  };
+}
+
+// Normalize an Acartia sighting, trying several plausible field-name shapes
+function normalizeAcartia(s){
+  if(!s || typeof s !== 'object') return null;
+
+  const lat = num(s.latitude ?? s.lat ?? (s.location && s.location.lat) ?? (s.geometry && s.geometry.coordinates && s.geometry.coordinates[1]));
+  const lng = num(s.longitude ?? s.lng ?? s.lon ?? (s.location && s.location.lng) ?? (s.geometry && s.geometry.coordinates && s.geometry.coordinates[0]));
+
+  const speciesRaw = s.species || s.animal_type || s.type || s.name || (s.organization && s.organization.species) || 'Whale';
+  const badge = guessBadge(speciesRaw);
+
+  const observedAt = s.created || s.timestamp || s.observed_at || s.date || s.createdAt;
+  const place = s.location_name || s.place || s.description || 'Salish Sea region';
+  const link = s.url || s.source_url || 'https://acartia.io';
+
+  return { source: 'acartia', lat, lng, speciesName: titleCase(speciesRaw), speciesRaw, badge, observedAt, place, link };
+}
+
+function num(v){
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+function titleCase(str){
+  if(!str || typeof str !== 'string') return 'Whale';
+  return str.replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function guessBadge(raw){
+  if(!raw) return 'whale';
+  const s = String(raw).toLowerCase();
+  if(s.includes('orca') || s.includes('killer')) return 'orca';
+  if(s.includes('eagle')) return 'eagle';
+  if(s.includes('bear') || s.includes('grizzly') || s.includes('ursus')) return 'bear';
+  if(s.includes('otter')) return 'otter';
+  return 'whale';
+}
+
+// Color now encodes recency, not species:
+// green = within 24h, blue = within 48h, purple = within 3 days,
+// orange = within 4 days, red = older than that (or unknown date)
+function colorForRecency(observedAt){
+  if(!observedAt) return { color: '#a3401f', label: 'Unknown date' }; // red
+  const t = new Date(observedAt).getTime();
+  if(isNaN(t)) return { color: '#a3401f', label: 'Unknown date' };
+
+  const hoursAgo = (Date.now() - t) / (1000 * 60 * 60);
+
+  if(hoursAgo <= 24)  return { color: '#2e8b4f', label: 'Within 24 hours' };  // green
+  if(hoursAgo <= 48)  return { color: '#1f6fb5', label: 'Within 48 hours' };  // blue
+  if(hoursAgo <= 72)  return { color: '#7b4fa3', label: 'Within 3 days' };    // purple
+  if(hoursAgo <= 96)  return { color: '#c4711f', label: 'Within 4 days' };    // orange
+  return { color: '#a3401f', label: 'Older than 4 days' };                   // red
+}
+
+function renderMap(sightings){
+  markersLayer.clearLayers();
+
+  sightings.forEach(s => {
+    if(typeof s.lat !== 'number' || typeof s.lng !== 'number') return;
+
+    const ring = s.source === 'acartia' ? '#5fe0b8' : '#fefcf6';
+    const ringWidth = s.source === 'acartia' ? 3 : 2;
+    const recency = colorForRecency(s.observedAt);
+    const icon = markerIconFor(s.badge, recency.color, ring, ringWidth);
+
+    const marker = L.marker([s.lat, s.lng], { icon });
+
+    const { day, time } = fmtDate(s.observedAt);
+    const sourceLabel = s.source === 'acartia' ? 'Acartia · Salish Sea network' : 'iNaturalist';
+    marker.bindPopup(`
+      <div class="popup-species">${s.speciesName}</div>
+      <div class="popup-meta">${day} ${time} · ${s.place}</div>
+      <div class="popup-meta">${recency.label}</div>
+      <div class="popup-meta">${sourceLabel}</div>
+      <a class="popup-link" href="${s.link}" target="_blank">View source →</a>
+    `);
+    marker.addTo(markersLayer);
+  });
+
+  if(sightings.length){
+    const validLayers = markersLayer.getLayers();
+    if(validLayers.length){
+      const group = new L.featureGroup(validLayers);
+      try{ map.fitBounds(group.getBounds().pad(0.3)); }catch(e){}
+    }
+  }
+}
+
+// Builds a small CSS-shape marker. Shape = species (orca = triangle,
+// humpback = circle, other = square). Fill color = recency (see
+// colorForRecency). Ring color = data source (white = iNaturalist,
+// teal = Acartia) — purely a thin outline, unrelated to species/recency.
+function markerIconFor(badge, fillColor, ringColor, ringWidth){
+  const size = 18;
+  let shapeHtml = '';
+  let totalSize = size + ringWidth * 2;
+
+  if(badge === 'orca'){
+    // CSS triangle: a slightly larger ring-colored triangle behind a smaller
+    // fill-colored triangle, layered to fake an outline (outline/border
+    // don't follow the shape of a border-trick triangle).
+    totalSize = 20;
+    shapeHtml = `
+      <div style="position:relative; width:20px; height:18px;">
+        <div style="
+          position:absolute; top:0; left:0;
+          width:0; height:0;
+          border-left:10px solid transparent;
+          border-right:10px solid transparent;
+          border-bottom:18px solid ${ringColor};
+        "></div>
+        <div style="
+          position:absolute; top:${ringWidth}px; left:${ringWidth}px;
+          width:0; height:0;
+          border-left:${10-ringWidth}px solid transparent;
+          border-right:${10-ringWidth}px solid transparent;
+          border-bottom:${18-ringWidth*1.6}px solid ${fillColor};
+        "></div>
+      </div>`;
+  } else if(badge === 'whale'){
+    // Circle = any whale that isn't an orca (humpback, gray, minke, etc.)
+    shapeHtml = `
+      <div style="
+        width:${size}px; height:${size}px;
+        background:${fillColor};
+        border:${ringWidth}px solid ${ringColor};
+        border-radius:50%;
+        box-shadow:0 1px 2px rgba(0,0,0,0.3);
+      "></div>`;
+  } else if(badge === 'eagle'){
+    // Square = bald eagle
+    shapeHtml = `
+      <div style="
+        width:${size}px; height:${size}px;
+        background:${fillColor};
+        border:${ringWidth}px solid ${ringColor};
+        box-shadow:0 1px 2px rgba(0,0,0,0.3);
+      "></div>`;
+  } else if(badge === 'bear'){
+    // Diamond = any bear (black bear or grizzly/brown bear)
+    const inner = size - ringWidth * 2;
+    totalSize = size + ringWidth * 2 + 4; // small buffer so rotated corners aren't clipped
+    shapeHtml = `
+      <div style="
+        width:${size}px; height:${size}px;
+        background:${fillColor};
+        border:${ringWidth}px solid ${ringColor};
+        transform: rotate(45deg);
+        box-shadow:0 1px 2px rgba(0,0,0,0.3);
+      "></div>`;
+  } else if(badge === 'salmon'){
+    // Hexagon: clip-path shapes can't take a normal CSS border, so we fake
+    // an outline by layering a slightly larger ring-colored hexagon behind
+    // a smaller fill-colored hexagon (same trick used for the orca triangle).
+    const hexClip = 'polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%)';
+    const outerSize = size + ringWidth * 2;
+    totalSize = outerSize;
+    shapeHtml = `
+      <div style="position:relative; width:${outerSize}px; height:${outerSize}px;">
+        <div style="
+          position:absolute; top:0; left:0;
+          width:${outerSize}px; height:${outerSize}px;
+          background:${ringColor};
+          clip-path:${hexClip};
+          filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+        "></div>
+        <div style="
+          position:absolute; top:${ringWidth}px; left:${ringWidth}px;
+          width:${size}px; height:${size}px;
+          background:${fillColor};
+          clip-path:${hexClip};
+        "></div>
+      </div>`;
+  } else if(badge === 'otter'){
+    // Star = sea otter. Same layered clip-path outline trick, sized a touch
+    // larger since star points read as smaller than circles/squares at
+    // equivalent box size.
+    const starClip = 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)';
+    const outerSize = size + ringWidth * 2 + 4;
+    const innerSize = size + 4;
+    totalSize = outerSize;
+    shapeHtml = `
+      <div style="position:relative; width:${outerSize}px; height:${outerSize}px;">
+        <div style="
+          position:absolute; top:0; left:0;
+          width:${outerSize}px; height:${outerSize}px;
+          background:${ringColor};
+          clip-path:${starClip};
+          filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+        "></div>
+        <div style="
+          position:absolute; top:${ringWidth}px; left:${ringWidth}px;
+          width:${innerSize}px; height:${innerSize}px;
+          background:${fillColor};
+          clip-path:${starClip};
+        "></div>
+      </div>`;
+  } else if(badge === 'cougar'){
+    // Octagon = cougar. Same layered clip-path outline trick.
+    const octClip = 'polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)';
+    const outerSize = size + ringWidth * 2;
+    totalSize = outerSize;
+    shapeHtml = `
+      <div style="position:relative; width:${outerSize}px; height:${outerSize}px;">
+        <div style="
+          position:absolute; top:0; left:0;
+          width:${outerSize}px; height:${outerSize}px;
+          background:${ringColor};
+          clip-path:${octClip};
+          filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+        "></div>
+        <div style="
+          position:absolute; top:${ringWidth}px; left:${ringWidth}px;
+          width:${size}px; height:${size}px;
+          background:${fillColor};
+          clip-path:${octClip};
+        "></div>
+      </div>`;
+  } else {
+    // Fallback (shouldn't normally hit this) — small neutral square
+    shapeHtml = `
+      <div style="
+        width:${size}px; height:${size}px;
+        background:${fillColor};
+        border:${ringWidth}px solid ${ringColor};
+        box-shadow:0 1px 2px rgba(0,0,0,0.3);
+      "></div>`;
+  }
+
+  return L.divIcon({
+    html: shapeHtml,
+    className: 'whale-marker-icon',
+    iconSize: [totalSize, totalSize],
+    iconAnchor: [totalSize / 2, totalSize / 2]
+  });
+}
+
+function renderLog(sightings){
+  const list = document.getElementById('logList');
+  const count = document.getElementById('logCount');
+  count.textContent = `${sightings.length} sighting${sightings.length === 1 ? '' : 's'}`;
+
+  if(!sightings.length){
+    list.innerHTML = `<li class="empty-state">No reported sightings in this window. Try widening the date range — whales don't punch a clock.</li>`;
+    return;
+  }
+
+  list.innerHTML = sightings.map(s => {
+    const { day, time } = fmtDate(s.observedAt);
+    const recency = colorForRecency(s.observedAt);
+    const sourceTag = s.source === 'acartia'
+      ? '<span class="source-tag acartia">acartia · salish sea</span>'
+      : '<span class="source-tag">inaturalist</span>';
+    const speciesLabel = s.badge;
+    return `
+      <li class="log-entry">
+        <div class="log-time"><span class="day">${day}</span>${time}</div>
+        <div class="log-main">
+          <p class="species">${s.speciesName}</p>
+          <p class="place">${s.place}</p>
+          ${sourceTag}
+        </div>
+        <span class="badge" style="background:${recency.color};" title="${recency.label}">${speciesLabel}</span>
+      </li>
+    `;
+  }).join('');
+}
+
+function setUpdatedNow(){
+  const now = new Date();
+  document.getElementById('updatedAt').textContent =
+    `updated ${now.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' })}`;
+}
+
+function sortByDateDesc(a, b){
+  const ta = a.observedAt ? new Date(a.observedAt).getTime() : 0;
+  const tb = b.observedAt ? new Date(b.observedAt).getTime() : 0;
+  return tb - ta;
+}
+
+function matchesTaxonFilter(s, taxonChoice){
+  if(taxonChoice === 'all') return true;
+  return s.badge === badgeFor(parseInt(taxonChoice, 10));
+}
+
+// Offline fallback: cache the last successful merged result in localStorage,
+// keyed by filter combo, so a failed fetch can fall back to "last known good"
+// data instead of showing an empty map.
+const CACHE_PREFIX = 'whaleTrackerCache:';
+
+function cacheKey(taxonChoice, days, includeAcartia){
+  return `${CACHE_PREFIX}${taxonChoice}:${days}:${includeAcartia}`;
+}
+
+function saveToCache(taxonChoice, days, includeAcartia, sightings){
+  try{
+    const payload = { sightings, savedAt: new Date().toISOString() };
+    localStorage.setItem(cacheKey(taxonChoice, days, includeAcartia), JSON.stringify(payload));
+  }catch(e){
+    console.warn('Could not save offline cache:', e.message);
+  }
+}
+
+function loadFromCache(taxonChoice, days, includeAcartia){
+  try{
+    const raw = localStorage.getItem(cacheKey(taxonChoice, days, includeAcartia));
+    if(!raw) return null;
+    return JSON.parse(raw);
+  }catch(e){
+    return null;
+  }
+}
+
+function relativeAge(isoTime){
+  const diffMs = Date.now() - new Date(isoTime).getTime();
+  const mins = Math.round(diffMs / 60000);
+  if(mins < 1) return 'just now';
+  if(mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if(hrs < 24) return `${hrs} hr${hrs === 1 ? '' : 's'} ago`;
+  const days = Math.round(hrs / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+async function loadData(){
+  const btn = document.getElementById('refreshBtn');
+  const taxonChoice = document.getElementById('taxonFilter').value;
+  const days = parseInt(document.getElementById('daysFilter').value, 10);
+  const includeAcartia = document.getElementById('acartiaToggle').checked;
+
+  btn.disabled = true;
+  btn.textContent = '↻ Loading…';
+  document.getElementById('logList').innerHTML = `<li class="loading-state">Casting nets for data…</li>`;
+
+  // If the browser already knows there's no connection, skip straight to
+  // cached data rather than waiting on fetches that are guaranteed to fail.
+  if(!navigator.onLine){
+    return showCachedOrEmpty(taxonChoice, days, includeAcartia,
+      `You're offline. Showing the most recent sightings saved on this device.`);
+  }
+
+  // Each source is fetched and handled independently — a failure in one
+  // (CORS block, rate limit, network hiccup) never wipes out the other.
+  const [inatResult, acartiaResult] = await Promise.all([
+    fetchSightings(taxonChoice, days),
+    includeAcartia ? fetchAcartia() : Promise.resolve([])
+  ]);
+
+  const notes = [];
+  let inatResults = [];
+  let acartiaResults = [];
+  let inatFailed = false;
+
+  if(Array.isArray(inatResult)){
+    inatResults = inatResult;
+  } else if(inatResult && inatResult.error){
+    inatFailed = true;
+    notes.push(`iNaturalist unreachable (${inatResult.error}).`);
+  }
+
+  if(Array.isArray(acartiaResult)){
+    acartiaResults = acartiaResult.filter(s => matchesTaxonFilter(s, taxonChoice));
+  } else if(acartiaResult && acartiaResult.error){
+    notes.push(`Acartia unreachable — this is likely the Acartia server blocking cross-origin browser requests (CORS), not a bug in this page. (${acartiaResult.error})`);
+  }
+
+  // If the primary source (iNaturalist) totally failed, fall back to
+  // whatever was last cached rather than showing an empty map.
+  if(inatFailed && acartiaResults.length === 0){
+    return showCachedOrEmpty(taxonChoice, days, includeAcartia, notes.join(' '));
+  }
+
+  const merged = [...inatResults, ...acartiaResults].sort(sortByDateDesc);
+
+  renderMap(merged);
+  renderLog(merged);
+  setUpdatedNow();
+  saveToCache(taxonChoice, days, includeAcartia, merged);
+
+  if(notes.length){
+    const list = document.getElementById('logList');
+    const noteHtml = notes.map(n => `<li class="error-state" style="font-size:11.5px;">${n}</li>`).join('');
+    list.insertAdjacentHTML('afterbegin', noteHtml);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '↻ Refresh now';
+}
+
+function showCachedOrEmpty(taxonChoice, days, includeAcartia, reason){
+  const btn = document.getElementById('refreshBtn');
+  const cached = loadFromCache(taxonChoice, days, includeAcartia);
+
+  if(cached && cached.sightings && cached.sightings.length){
+    renderMap(cached.sightings);
+    renderLog(cached.sightings);
+    document.getElementById('updatedAt').textContent = `showing cached data from ${relativeAge(cached.savedAt)}`;
+
+    const list = document.getElementById('logList');
+    list.insertAdjacentHTML('afterbegin',
+      `<li class="error-state" style="font-size:11.5px;">${reason} Last live update was ${relativeAge(cached.savedAt)} — pins below are from that snapshot.</li>`);
+  }else{
+    document.getElementById('logList').innerHTML =
+      `<li class="error-state">${reason} No cached data is saved on this device yet — once it loads successfully once, it'll be available offline next time.</li>`;
+    document.getElementById('updatedAt').textContent = '—';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '↻ Refresh now';
+}
+
+initMap();
+if(window.location.protocol === 'file:'){
+  document.getElementById('fileProtocolWarning').style.display = 'block';
+}
+loadData();
+document.getElementById('refreshBtn').addEventListener('click', loadData);
+document.getElementById('taxonFilter').addEventListener('change', loadData);
+document.getElementById('daysFilter').addEventListener('change', loadData);
+document.getElementById('acartiaToggle').addEventListener('change', loadData);
+
+// React immediately to connectivity changes rather than waiting for the
+// next manual refresh or the hourly timer.
+window.addEventListener('offline', () => {
+  document.getElementById('updatedAt').textContent = 'offline — using cached data';
+  loadData();
+});
+window.addEventListener('online', loadData);
+
+// Auto-refresh hourly while the tab is open
+setInterval(loadData, 60 * 60 * 1000);
+</script>
+
+</body>
+</html>
